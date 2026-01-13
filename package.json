@@ -1,6 +1,6 @@
 {
   "name": "@sergenkabakci/react-native-html-renderer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A performant HTML rendering library for React Native using native components",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -25,8 +25,16 @@
     "renderer",
     "html-viewer"
   ],
-  "author": "",
+  "author": "Sergen Kabakci",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sergenkabakci/react-native-html-renderer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sergenkabakci/react-native-html-renderer/issues"
+  },
+  "homepage": "https://github.com/sergenkabakci/react-native-html-renderer#readme",
   "peerDependencies": {
     "react": ">=18.2.0",
     "react-native": ">=0.73.0"
