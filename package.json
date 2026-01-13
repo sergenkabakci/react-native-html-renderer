@@ -1,0 +1,46 @@
+{
+  "name": "@sergenkabakci/react-native-html-renderer",
+  "version": "1.0.0",
+  "description": "A performant HTML rendering library for React Native using native components",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "react-native": "src/index.ts",
+  "source": "src/index.ts",
+  "files": [
+    "src",
+    "lib"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "prepare": "npm run build",
+    "lint": "eslint src --ext .ts,.tsx"
+  },
+  "keywords": [
+    "react-native",
+    "html",
+    "parser",
+    "renderer",
+    "html-viewer"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=18.2.0",
+    "react-native": ">=0.73.0"
+  },
+  "dependencies": {
+    "htmlparser2": "^9.1.0"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "^12.9.0",
+    "@types/jest": "^29.5.14",
+    "@types/react": "~19.1.0",
+    "jest": "^29.7.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "typescript": "^5.6.0"
+  }
+}
