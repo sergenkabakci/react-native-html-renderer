@@ -7,7 +7,7 @@
 import type { ReactNode } from 'react';
 import type { TextStyle, ViewStyle, ImageStyle } from 'react-native';
 import type { ElementNode, HtmlNode, ParserOptions } from '../parser/types';
-import type { TagsStyles, ClassesStyles, StyleResolverConfig } from '../styles/styleResolver';
+import type { TagsStyles, ClassesStyles } from '../styles/styleResolver';
 import type { HtmlPlugin, RenderersMap, PluginRegistry } from '../plugins';
 
 /**
@@ -75,22 +75,25 @@ export interface HTMLRendererProps {
     /** Key for the renderer (forces re-render when changed) */
     contentKey?: string;
 
-    /** Enable virtualization for large content */
+    /**
+     * Render large content through a FlatList.
+     * The renderer then scrolls by itself, so don't nest it inside a ScrollView.
+     */
     enableVirtualization?: boolean;
 
     /** Estimated row height for virtualization */
     estimatedRowHeight?: number;
 
-    /** Maximum number of nodes before virtualization is auto-enabled */
+    /** Minimum node count before virtualization kicks in (requires enableVirtualization) */
     virtualizationThreshold?: number;
 
-    /** Error boundary fallback */
+    /** Rendered when parsing fails or a renderer throws while rendering */
     errorBoundaryFallback?: ReactNode;
 
     /** Callback when rendering completes */
     onRenderComplete?: (nodeCount: number) => void;
 
-    /** Callback when an error occurs */
+    /** Called for parse errors and for errors thrown while rendering */
     onError?: (error: Error) => void;
 }
 

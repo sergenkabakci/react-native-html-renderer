@@ -88,7 +88,8 @@ describe('parseHtml', () => {
         const { nodes, errors } = parseHtml('<div><p>Unclosed paragraph<div>Another');
 
         // Should not throw, should produce some output
-        expect(nodes.length).toBeGreaterThanOrEqual(0);
+        expect(errors).toHaveLength(0);
+        expect(nodes.length).toBeGreaterThan(0);
     });
 
     it('should normalize whitespace by default', () => {
@@ -115,6 +116,42 @@ describe('parseHtml', () => {
         expect(p.children[0].content).toContain('&');
         expect(p.children[0].content).toContain('<');
         expect(p.children[0].content).toContain('>');
+    });
+});
+
+describe('whitespace handling', () => {
+    it('should keep a single space between inline elements', () => {
+        const { nodes } = parseHtml('<p><b>a</b> <i>b</i></p>');
+
+        expect(getTextContent(nodes[0])).toBe('a b');
+    });
+
+    it('should drop whitespace next to block boundaries', () => {
+        const { nodes } = parseHtml('<div>\n  <p> Hello <b> world </b> </p>\n  <ul>\n <li> One </li>\n </ul>\n</div>');
+
+        const div = nodes[0] as any;
+        expect(div.children.map((c: any) => c.tagName)).toEqual(['p', 'ul']);
+        expect(getTextContent(div.children[0])).toBe('Hello world');
+        expect(getTextContent(div.children[1])).toBe('One');
+    });
+
+    it('should trim around line breaks', () => {
+        const { nodes } = parseHtml('<p>one <br> two</p>');
+
+        const p = nodes[0] as any;
+        expect(p.children.map((c: any) => c.content ?? c.tagName)).toEqual(['one', 'br', 'two']);
+    });
+
+    it('should preserve non-breaking spaces', () => {
+        const { nodes } = parseHtml('<p>a&nbsp;&nbsp;b</p>');
+
+        expect(getTextContent(nodes[0])).toBe('a\u00a0\u00a0b');
+    });
+
+    it('should preserve whitespace inside pre', () => {
+        const { nodes } = parseHtml('<pre>\n  indented\n    more  </pre>');
+
+        expect(getTextContent(nodes[0])).toBe('  indented\n    more  ');
     });
 });
 
@@ -185,6 +222,13 @@ describe('findById', () => {
         const element = findById(nodes, 'target');
         expect(element).toBeDefined();
         expect(element?.tagName).toBe('p');
+    });
+
+    it('should return the first match when IDs are duplicated', () => {
+        const { nodes } = parseHtml('<p id="dup">First</p><p id="dup">Second</p>');
+
+        const element = findById(nodes, 'dup');
+        expect(getTextContent(element!)).toBe('First');
     });
 
     it('should return undefined if ID not found', () => {

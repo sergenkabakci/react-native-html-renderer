@@ -8,7 +8,7 @@ import React, { memo, type ReactNode, createContext, useContext } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { ViewStyle, TextStyle } from 'react-native';
 import type { ElementNode } from '../parser/types';
-import { useRenderContext } from '../renderer/RenderContext';
+import { useInheritedText } from '../renderer/TextInheritance';
 
 /**
  * List context for passing list type and depth
@@ -137,14 +137,12 @@ export interface ListItemProps {
  * List Item component
  */
 function ListItemComponent({
-  node,
   style,
-  depth = 0,
   index = 0,
   children,
 }: ListItemProps): React.ReactElement {
-  const { textSelectable } = useRenderContext();
   const listContext = useContext(ListContext);
+  const inherited = useInheritedText();
   
   // Determine marker
   const marker = listContext.type === 'ol'
@@ -153,14 +151,13 @@ function ListItemComponent({
   
   return (
     <View style={[styles.listItem, style]}>
-      <Text style={styles.marker} selectable={false}>
+      <Text
+        style={[styles.marker, { lineHeight: inherited.style?.lineHeight }]}
+        selectable={false}
+      >
         {marker}
       </Text>
-      <View style={styles.listItemContent}>
-        <Text selectable={textSelectable} style={styles.listItemText}>
-          {children}
-        </Text>
-      </View>
+      <View style={styles.listItemContent}>{children}</View>
     </View>
   );
 }
@@ -211,10 +208,6 @@ const styles = StyleSheet.create({
   },
   listItemContent: {
     flex: 1,
-  },
-  listItemText: {
-    lineHeight: 22,
-    fontSize: 16,
   },
 });
 

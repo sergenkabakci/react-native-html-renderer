@@ -4,11 +4,10 @@
  * @module components/Table
  */
 
-import React, { memo, type ReactNode, createContext, useContext } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { memo, type ReactNode, createContext } from 'react';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import type { ViewStyle, TextStyle } from 'react-native';
 import type { ElementNode } from '../parser/types';
-import { useRenderContext } from '../renderer/RenderContext';
 
 /**
  * Table context for passing column count
@@ -71,8 +70,14 @@ function TableComponent({
   style,
   children,
 }: TableProps): React.ReactElement {
+  // thead/tbody/tfoot are row groups inside the table's scroll container;
+  // giving each its own ScrollView would misalign and desync the columns.
+  if (node.tagName !== 'table') {
+    return <View style={style}>{children}</View>;
+  }
+
   const columnCount = countColumns(node);
-  const isHeader = node.tagName === 'thead';
+  const isHeader = false;
   
   return (
     <TableContext.Provider value={{ columnCount, isHeader }}>
@@ -99,7 +104,6 @@ export interface TableRowProps {
  * Table Row component
  */
 function TableRowComponent({
-  node,
   style,
   parent,
   children,
@@ -141,20 +145,11 @@ function TableCellComponent({
   parent,
   children,
 }: TableCellProps): React.ReactElement {
-  const { textSelectable } = useRenderContext();
-  const { columnCount } = useContext(TableContext);
-  
   const isHeader = node.tagName === 'th' || parent?.tagName === 'thead';
   const isCaption = node.tagName === 'caption';
   
   if (isCaption) {
-    return (
-      <View style={styles.caption}>
-        <Text style={styles.captionText} selectable={textSelectable}>
-          {children}
-        </Text>
-      </View>
-    );
+    return <View style={[styles.caption, style]}>{children}</View>;
   }
   
   return (
@@ -166,15 +161,7 @@ function TableCellComponent({
         style,
       ]}
     >
-      <Text
-        style={[
-          styles.cellText,
-          isHeader && styles.headerCellText,
-        ]}
-        selectable={textSelectable}
-      >
-        {children}
-      </Text>
+      {children}
     </View>
   );
 }
@@ -241,25 +228,10 @@ const styles = StyleSheet.create({
   headerCell: {
     backgroundColor: '#f5f5f5',
   },
-  cellText: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#333333',
-  },
-  headerCellText: {
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
   caption: {
     padding: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-  },
-  captionText: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    color: '#666666',
   },
 });
 

@@ -232,6 +232,9 @@ export const defaultTagStyles: Record<string, ViewStyle | TextStyle | ImageStyle
     th: {
         flex: 1,
         padding: 8,
+        fontSize: 14,
+        lineHeight: 20,
+        color: '#333333',
         fontWeight: 'bold',
         borderRightWidth: 1,
         borderRightColor: '#e0e0e0',
@@ -241,11 +244,16 @@ export const defaultTagStyles: Record<string, ViewStyle | TextStyle | ImageStyle
     td: {
         flex: 1,
         padding: 8,
+        fontSize: 14,
+        lineHeight: 20,
+        color: '#333333',
         borderRightWidth: 1,
         borderRightColor: '#e0e0e0',
     },
 
     caption: {
+        fontSize: 14,
+        color: '#666666',
         textAlign: 'center',
         fontStyle: 'italic',
         marginBottom: 8,
@@ -253,6 +261,8 @@ export const defaultTagStyles: Record<string, ViewStyle | TextStyle | ImageStyle
 
     // Code
     pre: {
+        fontSize: 13,
+        lineHeight: 20,
         backgroundColor: '#f5f5f5',
         padding: 12,
         borderRadius: 4,
@@ -287,6 +297,29 @@ export const defaultTagStyles: Record<string, ViewStyle | TextStyle | ImageStyle
         marginVertical: 8,
     },
 
+    dl: {
+        marginVertical: 12,
+    },
+
+    dt: {
+        fontWeight: 'bold',
+    },
+
+    dd: {
+        marginLeft: 24,
+        marginBottom: 4,
+    },
+
+    center: {
+        alignItems: 'center',
+        textAlign: 'center',
+    },
+
+    address: {
+        fontStyle: 'italic',
+        marginVertical: 12,
+    },
+
     summary: {
         fontWeight: 'bold',
     },
@@ -313,6 +346,7 @@ export function getDefaultTagStyle(tagName: string): ViewStyle | TextStyle | Ima
 export const TEXT_ONLY_TAGS = new Set([
     'span', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'ins', 'mark',
     'small', 'sub', 'sup', 'code', 'a',
+    'abbr', 'cite', 'q', 'time', 'kbd', 'samp', 'var', 'dfn', 'font', 'label', 'bdi', 'bdo', 'data', 'big', 'tt',
 ]);
 
 /**

@@ -21,7 +21,12 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { HTMLRenderer } from '@sergenkabakci/react-native-html-renderer';
-import type { ElementNode, HtmlPlugin } from '@sergenkabakci/react-native-html-renderer';
+import type {
+  ClassesStyles,
+  ElementNode,
+  HtmlPlugin,
+  TagsStyles,
+} from '@sergenkabakci/react-native-html-renderer';
 import { SafeAreaView } from 'react-native-safe-area-context';
 // Sample HTML content for different examples
 const EXAMPLES = {
@@ -97,9 +102,9 @@ const EXAMPLES = {
   images: `
     <h2>Images</h2>
     <p>Here's an image:</p>
-    <img src="https://via.placeholder.com/300x200" alt="Placeholder image" />
+    <img src="https://picsum.photos/id/1015/300/200" alt="River landscape" />
     <p>Images resize automatically to fit the screen.</p>
-    <img src="https://via.placeholder.com/800x400" alt="Wide image" />
+    <img src="https://picsum.photos/id/1018/1200/600" alt="Wide mountain landscape" />
   `,
   
   tables: `
@@ -165,6 +170,12 @@ greet('World');</code></pre>
     </div>
   `,
 
+  plugins: `
+    <h2>Plugins</h2>
+    <p>The custom <code>&lt;badge&gt;</code> tag below is rendered by a plugin:</p>
+    <badge>New</badge>
+  `,
+
   complex: `
     <article>
       <header>
@@ -211,7 +222,7 @@ greet('World');</code></pre>
       
       <section>
         <h2>Code Example</h2>
-        <pre><code>import { HTMLRenderer } from 'react-native-html-viewer';
+        <pre><code>import { HTMLRenderer } from '@sergenkabakci/react-native-html-renderer';
 
 function MyComponent() {
   return (
@@ -250,6 +261,45 @@ const badgePlugin: HtmlPlugin = {
   },
 };
 
+// Styles and plugins live outside the component so their identity stays
+// stable between renders (inline objects would rebuild the renderer each time).
+
+// Custom styles for class-based styling
+const classesStyles: ClassesStyles = {
+  intro: {
+    fontSize: 18,
+    lineHeight: 28,
+    color: '#333',
+    marginBottom: 16,
+  },
+  highlight: {
+    backgroundColor: '#fff3cd',
+    padding: 12,
+    borderRadius: 8,
+  },
+  card: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    marginVertical: 12,
+  },
+};
+
+// Custom tag styles
+const tagsStyles: TagsStyles = {
+  h1: {
+    color: '#1a1a2e',
+    marginBottom: 20,
+  },
+  a: {
+    color: '#6366f1',
+  },
+};
+
+const plugins = [badgePlugin];
+
 export default function App() {
   const [currentExample, setCurrentExample] = useState<ExampleKey>('basic');
   
@@ -275,39 +325,6 @@ export default function App() {
     Alert.alert('Image Pressed', `Source: ${src}`);
   }, []);
   
-  // Custom styles for class-based styling
-  const classesStyles = {
-    intro: {
-      fontSize: 18,
-      lineHeight: 28,
-      color: '#333',
-      marginBottom: 16,
-    },
-    highlight: {
-      backgroundColor: '#fff3cd',
-      padding: 12,
-      borderRadius: 8,
-    },
-    card: {
-      backgroundColor: '#f8f9fa',
-      padding: 16,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: '#e9ecef',
-      marginVertical: 12,
-    },
-  };
-  
-  // Custom tag styles
-  const tagsStyles = {
-    h1: {
-      color: '#1a1a2e',
-      marginBottom: 20,
-    },
-    a: {
-      color: '#6366f1',
-    },
-  };
   
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -354,7 +371,7 @@ export default function App() {
           classesStyles={classesStyles}
           onLinkPress={handleLinkPress}
           onImagePress={handleImagePress}
-          plugins={[badgePlugin]}
+          plugins={plugins}
           textSelectable={true}
           debug={false}
         />

@@ -5,10 +5,11 @@
  */
 
 import React, { memo, useCallback, type ReactNode } from 'react';
-import { Text, Linking, StyleSheet } from 'react-native';
-import type { TextStyle } from 'react-native';
+import { Text, Linking, Pressable, StyleSheet } from 'react-native';
+import type { TextStyle, ViewStyle } from 'react-native';
 import type { ElementNode } from '../parser/types';
 import { useRenderContext } from '../renderer/RenderContext';
+import { LOG_PREFIX } from '../renderer/constants';
 
 /**
  * Props for Anchor
@@ -20,6 +21,8 @@ export interface AnchorProps {
   depth?: number;
   index?: number;
   children?: ReactNode;
+  /** Render as a pressable box, for links that wrap blocks such as images */
+  block?: boolean;
 }
 
 /**
@@ -50,6 +53,7 @@ function AnchorComponent({
   node,
   style,
   children,
+  block = false,
 }: AnchorProps): React.ReactElement {
   const { onLinkPress, textSelectable } = useRenderContext();
   
@@ -70,10 +74,10 @@ function AnchorComponent({
       if (canOpen) {
         await Linking.openURL(href);
       } else {
-        console.warn(`[react-native-html-viewer] Cannot open URL: ${href}`);
+        console.warn(`${LOG_PREFIX} Cannot open URL: ${href}`);
       }
     } catch (error) {
-      console.error(`[react-native-html-viewer] Error opening URL: ${href}`, error);
+      console.error(`${LOG_PREFIX} Error opening URL: ${href}`, error);
     }
   }, [href, onLinkPress, node]);
   
@@ -90,6 +94,19 @@ function AnchorComponent({
     }
     return 'Navigates to link';
   };
+  
+  if (block) {
+    return (
+      <Pressable
+        style={style as ViewStyle}
+        onPress={handlePress}
+        accessibilityRole="link"
+        accessibilityHint={getAccessibilityHint()}
+      >
+        {children}
+      </Pressable>
+    );
+  }
   
   return (
     <Text
@@ -111,7 +128,8 @@ export const Anchor = memo(AnchorComponent, (prev, next) => {
   return (
     prev.node.key === next.node.key &&
     prev.node.attributes.href === next.node.attributes.href &&
-    prev.style === next.style
+    prev.style === next.style &&
+    prev.block === next.block
   );
 });
 

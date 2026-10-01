@@ -5,6 +5,7 @@
  */
 
 import React, { useMemo, useCallback, type ReactNode, type ReactElement } from 'react';
+import type { TextStyle } from 'react-native';
 import { parseHtml } from '../parser/parser';
 import type { HtmlNode, ParserOptions } from '../parser/types';
 import { createStyleResolver, type StyleResolverConfig, type TagsStyles, type ClassesStyles } from '../styles/styleResolver';
@@ -19,6 +20,7 @@ import type { FallbackProps } from './types';
 export interface UseHtmlRendererOptions {
     tagsStyles?: TagsStyles;
     classesStyles?: ClassesStyles;
+    baseTextStyle?: TextStyle;
     renderers?: RenderersMap;
     plugins?: HtmlPlugin[];
     pluginRegistry?: PluginRegistry;
@@ -51,6 +53,7 @@ export function useHtmlRenderer(
     const {
         tagsStyles = {},
         classesStyles = {},
+        baseTextStyle,
         renderers = {},
         plugins = [],
         pluginRegistry: customRegistry,
@@ -104,13 +107,14 @@ export function useHtmlRenderer(
                 pluginRegistry: registry,
                 textScale,
                 textSelectable,
+                baseTextStyle,
                 customFonts,
                 FallbackComponent: fallbackComponent,
                 debug,
                 children: nodesElement,
             }
         );
-    }, [resolveStyle, mergedRenderers, registry, textScale, textSelectable, customFonts, fallbackComponent, debug]);
+    }, [resolveStyle, mergedRenderers, registry, textScale, textSelectable, baseTextStyle, customFonts, fallbackComponent, debug]);
 
     const renderNode = useCallback((node: HtmlNode, index: number = 0): ReactElement => {
         const nodeElement = React.createElement(NodeRenderer, { node, index });
@@ -122,13 +126,14 @@ export function useHtmlRenderer(
                 pluginRegistry: registry,
                 textScale,
                 textSelectable,
+                baseTextStyle,
                 customFonts,
                 FallbackComponent: fallbackComponent,
                 debug,
                 children: nodeElement,
             }
         );
-    }, [resolveStyle, mergedRenderers, registry, textScale, textSelectable, customFonts, fallbackComponent, debug]);
+    }, [resolveStyle, mergedRenderers, registry, textScale, textSelectable, baseTextStyle, customFonts, fallbackComponent, debug]);
 
     const parseAndRender = useCallback((html: string): ReactNode => {
         const { nodes, errors } = parseHtml(html, parserOptions);

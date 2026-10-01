@@ -1,30 +1,19 @@
+/** @type {import('jest').Config} */
 module.exports = {
-    preset: 'react-native',
-    testEnvironment: 'node',
-    moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-    testPathIgnorePatterns: [
-        '<rootDir>/node_modules/',
-        '<rootDir>/lib/',
-        '<rootDir>/example/',
-    ],
-    transformIgnorePatterns: [
-        'node_modules/(?!(react-native|@react-native|htmlparser2)/)',
-    ],
-    collectCoverageFrom: [
-        'src/**/*.{ts,tsx}',
-        '!src/**/*.d.ts',
-        '!src/**/index.ts',
-    ],
-    coverageThreshold: {
-        global: {
-            branches: 50,
-            functions: 50,
-            lines: 50,
-            statements: 50,
-        },
+  preset: '@react-native/jest-preset',
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  modulePathIgnorePatterns: ['<rootDir>/example/', '<rootDir>/lib/'],
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/lib/', '<rootDir>/example/'],
+  transformIgnorePatterns: [
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)/)',
+  ],
+  collectCoverageFrom: ['src/**/*.{ts,tsx}', '!src/**/*.d.ts', '!src/**/index.ts'],
+  coverageThreshold: {
+    global: {
+      branches: 50,
+      functions: 50,
+      lines: 50,
+      statements: 50,
     },
-    setupFilesAfterEnv: [],
-    moduleNameMapper: {
-        '^react-native$': 'react-native',
-    },
+  },
 };

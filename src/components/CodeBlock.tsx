@@ -9,6 +9,7 @@ import { View, Text, ScrollView, StyleSheet, Platform } from 'react-native';
 import type { ViewStyle, TextStyle } from 'react-native';
 import type { ElementNode } from '../parser/types';
 import { useRenderContext } from '../renderer/RenderContext';
+import { pickTextStyle } from '../renderer/TextInheritance';
 
 /**
  * Props for CodeBlock
@@ -55,14 +56,19 @@ function CodeBlockComponent({
   
   const fontFamily = customFonts?.['monospace'] || getMonospaceFont();
   
+  // <code> inside <pre>: the surrounding <pre> already provides font and colors
+  if (node.tagName === 'code' && parent?.tagName === 'pre') {
+    return <Text style={{ fontFamily }}>{children}</Text>;
+  }
+
   // Handle inline code
   if (isInlineCode(node, parent)) {
     return (
       <Text
         style={[
           styles.inlineCode,
-          { fontFamily },
           style as TextStyle,
+          { fontFamily },
         ]}
         selectable={textSelectable}
       >
@@ -71,7 +77,7 @@ function CodeBlockComponent({
     );
   }
   
-  // Handle pre element or code inside pre
+  // <pre>: box styles go to the container, text styles to the text
   return (
     <View style={[styles.preContainer, style]}>
       <ScrollView
@@ -80,7 +86,7 @@ function CodeBlockComponent({
         style={styles.scrollView}
       >
         <Text
-          style={[styles.preText, { fontFamily }]}
+          style={[styles.preText, pickTextStyle(style), { fontFamily }]}
           selectable={textSelectable}
         >
           {children}
@@ -104,7 +110,7 @@ CodeBlock.displayName = 'CodeBlock';
 
 const styles = StyleSheet.create({
   preContainer: {
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#f5f5f5',
     borderRadius: 6,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -117,7 +123,7 @@ const styles = StyleSheet.create({
   preText: {
     fontSize: 13,
     lineHeight: 20,
-    color: '#d4d4d4',
+    color: '#24292f',
   },
   inlineCode: {
     fontSize: 14,

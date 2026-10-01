@@ -9,7 +9,6 @@ import { Text } from 'react-native';
 import type { TextStyle } from 'react-native';
 import type { ElementNode } from '../parser/types';
 import { useRenderContext } from '../renderer/RenderContext';
-import { scaleTextStyles } from '../styles/styleResolver';
 
 /**
  * Props for Heading
@@ -79,19 +78,14 @@ function HeadingComponent({
   style,
   children,
 }: HeadingProps): React.ReactElement {
-  const { textScale, textSelectable } = useRenderContext();
+  const { textSelectable } = useRenderContext();
   
-  // Get base heading style
+  // Base heading style; `style` (already resolved and text-scaled by NodeRenderer) wins
   const baseStyle = headingStyles[node.tagName] || headingStyles.h1;
-  
-  // Apply text scaling
-  const scaledStyle = textScale !== 1 
-    ? scaleTextStyles(baseStyle, textScale) 
-    : baseStyle;
   
   return (
     <Text
-      style={[scaledStyle, style]}
+      style={[baseStyle, style]}
       accessibilityRole="header"
       selectable={textSelectable}
     >

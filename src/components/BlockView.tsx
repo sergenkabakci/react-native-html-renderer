@@ -35,13 +35,8 @@ function BlockViewComponent({
   // Handle blockquote specifically
   if (node.tagName === 'blockquote') {
     return (
-      <View
-        style={[styles.blockquote, style]}
-        accessibilityRole="text"
-      >
-        <Text selectable={textSelectable} style={styles.blockquoteText}>
-          {children}
-        </Text>
+      <View style={[styles.blockquote, style]}>
+        {children}
       </View>
     );
   }
@@ -107,11 +102,6 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     borderLeftWidth: 4,
     borderLeftColor: '#e0e0e0',
-  },
-  blockquoteText: {
-    fontStyle: 'italic',
-    color: '#666666',
-    lineHeight: 24,
   },
 });
 

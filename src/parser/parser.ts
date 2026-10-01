@@ -4,7 +4,15 @@
  * @module parser/parser
  */
 
-import { Parser, DomHandler } from 'htmlparser2';
+import type * as HtmlParser2 from 'htmlparser2';
+
+declare const require: (id: string) => unknown;
+
+// Loaded with require() on purpose: for `import`, Metro picks htmlparser2's ESM
+// entry, which uses `export * as` syntax that @react-native/babel-preset cannot
+// compile (bare React Native apps fail to bundle; Expo happens to cope). require()
+// resolves the CommonJS build instead.
+const { Parser, DomHandler } = require('htmlparser2') as typeof HtmlParser2;
 import type {
     HtmlNode,
     ElementNode,
@@ -14,7 +22,7 @@ import type {
     ParserOptions,
     HtmlAttributes,
 } from './types';
-import { NodeType } from './types';
+import { NodeType, PREFORMATTED_TAGS, isLineBreakingTag } from './types';
 
 /**
  * Default parser options
@@ -42,22 +50,16 @@ export function resetKeyCounter(): void {
 }
 
 /**
- * Normalize whitespace in text content
- * Collapses multiple spaces and trims
+ * HTML "white space" characters. Deliberately not `\s`, which would also
+ * collapse non-breaking spaces (&nbsp;).
  */
-function normalizeText(text: string, preserveWhitespace: boolean = false): string {
-    if (preserveWhitespace) {
-        return text;
-    }
-    // Collapse multiple whitespace to single space
-    return text.replace(/\s+/g, ' ');
-}
+const HTML_WHITESPACE = /[ \t\n\r\f]+/g;
 
 /**
- * Check if text is only whitespace
+ * Collapse runs of whitespace to a single space, like browsers do
  */
-function isWhitespaceOnly(text: string): boolean {
-    return /^\s*$/.test(text);
+function normalizeText(text: string): string {
+    return text.replace(HTML_WHITESPACE, ' ');
 }
 
 /**
@@ -77,15 +79,15 @@ function parseAttributes(attrs: Record<string, string>): HtmlAttributes {
 function convertNode(
     node: any,
     parent: ElementNode | undefined,
-    options: ParserOptions
+    options: ParserOptions,
+    preformatted: boolean = false
 ): HtmlNode | null {
     if (node.type === 'text') {
-        const content = options.normalizeWhitespace
+        const content = options.normalizeWhitespace && !preformatted
             ? normalizeText(node.data)
             : node.data;
 
-        // Skip empty text nodes
-        if (isWhitespaceOnly(content) && options.normalizeWhitespace) {
+        if (!content) {
             return null;
         }
 
@@ -123,12 +125,22 @@ function convertNode(
         }
 
         // Process children
+        const childPreformatted = preformatted || PREFORMATTED_TAGS.has(tagName);
         if (node.children) {
             for (const child of node.children) {
-                const convertedChild = convertNode(child, elementNode, options);
+                const convertedChild = convertNode(child, elementNode, options, childPreformatted);
                 if (convertedChild) {
                     elementNode.children.push(convertedChild);
                 }
+            }
+        }
+
+        // Like browsers, ignore the newline right after <pre>
+        const first = elementNode.children[0];
+        if (PREFORMATTED_TAGS.has(tagName) && first?.type === NodeType.Text) {
+            first.content = first.content.replace(/^\r?\n/, '');
+            if (!first.content) {
+                elementNode.children.shift();
             }
         }
 
@@ -144,51 +156,100 @@ function convertNode(
 }
 
 /**
- * Post-process AST to merge adjacent text nodes and clean up
+ * Merge adjacent text nodes (left behind e.g. by removed comments or scripts)
  */
-function postProcess(nodes: HtmlNode[]): HtmlNode[] {
+function mergeAdjacentText(nodes: HtmlNode[]): HtmlNode[] {
     const result: HtmlNode[] = [];
 
-    for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i];
-
-        if (node.type === NodeType.Text) {
-            // Merge with previous text node if exists
-            const prev = result[result.length - 1];
-            if (prev && prev.type === NodeType.Text) {
-                prev.content += node.content;
-                continue;
-            }
+    for (const node of nodes) {
+        const prev = result[result.length - 1];
+        if (node.type === NodeType.Text && prev?.type === NodeType.Text) {
+            prev.content += node.content;
+            continue;
         }
 
         if (node.type === NodeType.Element) {
-            // Recursively post-process children
-            node.children = postProcess(node.children);
+            node.children = mergeAdjacentText(node.children);
         }
 
         result.push(node);
     }
 
-    // Trim leading/trailing whitespace from text nodes at boundaries
-    if (result.length > 0) {
-        const first = result[0];
-        if (first.type === NodeType.Text) {
-            first.content = first.content.trimStart();
-            if (!first.content) {
-                result.shift();
-            }
-        }
-
-        const last = result[result.length - 1];
-        if (last && last.type === NodeType.Text) {
-            last.content = last.content.trimEnd();
-            if (!last.content) {
-                result.pop();
-            }
-        }
-    }
-
     return result;
+}
+
+/**
+ * Collapse whitespace across a block's inline content, following the CSS rules
+ * browsers use: a space is kept between inline elements (`<b>a</b> <i>b</i>`),
+ * but dropped at the start and end of a line, i.e. next to block elements,
+ * images and <br>. Preformatted content is left untouched.
+ */
+function collapseWhitespace(nodes: HtmlNode[]): void {
+    let lastText: TextNode | null = null;
+    let atLineStart = true;
+
+    const endLine = (): void => {
+        if (lastText) {
+            lastText.content = lastText.content.replace(/ $/, '');
+        }
+        lastText = null;
+        atLineStart = true;
+    };
+
+    const visit = (list: HtmlNode[]): void => {
+        for (const node of list) {
+            if (node.type === NodeType.Text) {
+                if (atLineStart || lastText?.content.endsWith(' ')) {
+                    node.content = node.content.replace(/^ /, '');
+                }
+                if (node.content) {
+                    lastText = node;
+                    atLineStart = false;
+                }
+            } else if (node.type === NodeType.Element) {
+                const tag = node.tagName;
+                if (tag === 'br') {
+                    endLine();
+                } else if (PREFORMATTED_TAGS.has(tag)) {
+                    endLine();
+                } else if (isLineBreakingTag(tag)) {
+                    endLine();
+                    collapseWhitespace(node.children);
+                } else {
+                    visit(node.children);
+                }
+            }
+        }
+    };
+
+    visit(nodes);
+    endLine();
+}
+
+/**
+ * Remove text nodes that became empty while collapsing whitespace
+ */
+function removeEmptyText(nodes: HtmlNode[]): HtmlNode[] {
+    const result: HtmlNode[] = [];
+    for (const node of nodes) {
+        if (node.type === NodeType.Text && !node.content) {
+            continue;
+        }
+        if (node.type === NodeType.Element) {
+            node.children = removeEmptyText(node.children);
+        }
+        result.push(node);
+    }
+    return result;
+}
+
+/**
+ * Post-process AST: merge text nodes and collapse whitespace
+ */
+function postProcess(nodes: HtmlNode[]): HtmlNode[] {
+    const merged = mergeAdjacentText(nodes);
+    collapseWhitespace(merged);
+    return removeEmptyText(merged);
 }
 
 /**
@@ -358,9 +419,12 @@ export function findByTag(nodes: HtmlNode[], tagName: string): ElementNode[] {
 export function findById(nodes: HtmlNode[], id: string): ElementNode | undefined {
     let result: ElementNode | undefined;
     walkAst(nodes, (node) => {
+        if (result) {
+            return false; // Already found, skip the rest of the tree
+        }
         if (node.type === NodeType.Element && node.attributes.id === id) {
             result = node;
-            return false; // Stop walking
+            return false;
         }
     });
     return result;

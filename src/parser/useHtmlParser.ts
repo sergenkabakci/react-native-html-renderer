@@ -3,7 +3,7 @@
  * @module parser/useHtmlParser
  */
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { parseHtml } from './parser';
 import type { HtmlNode, ParseResult, ParserOptions } from './types';
 
@@ -58,11 +58,10 @@ export function useHtmlParser(
 ): UseHtmlParserResult {
     const { skipEmpty = true, ...parserOptions } = options;
 
-    // Memoize parser options to prevent unnecessary re-parses
-    const optionsKey = useMemo(
-        () => JSON.stringify(parserOptions),
-        [parserOptions]
-    );
+    // Parser options are plain JSON (booleans and string arrays), so a serialized
+    // key keeps the memoized result stable even when callers pass a new object
+    // on every render.
+    const optionsKey = JSON.stringify(parserOptions);
 
     // Parse HTML with memoization
     const parseResult = useMemo<ParseResult>(() => {
@@ -71,12 +70,12 @@ export function useHtmlParser(
             return { nodes: [], errors: [] };
         }
 
-        return parseHtml(html, parserOptions);
+        return parseHtml(html, JSON.parse(optionsKey));
     }, [html, optionsKey, skipEmpty]);
 
     // Imperative re-parse function
     const reparse = useCallback((newHtml: string): ParseResult => {
-        return parseHtml(newHtml, parserOptions);
+        return parseHtml(newHtml, JSON.parse(optionsKey));
     }, [optionsKey]);
 
     return {
@@ -118,12 +117,13 @@ export function useHtmlParser(
  */
 export function useLazyHtmlParser(options: Partial<ParserOptions> = {}) {
     const [result, setResult] = useState<ParseResult | null>(null);
+    const optionsKey = JSON.stringify(options);
 
     const parse = useCallback((html: string): ParseResult => {
-        const parseResult = parseHtml(html, options);
+        const parseResult = parseHtml(html, JSON.parse(optionsKey));
         setResult(parseResult);
         return parseResult;
-    }, [options]);
+    }, [optionsKey]);
 
     const clear = useCallback(() => {
         setResult(null);
@@ -138,9 +138,6 @@ export function useLazyHtmlParser(options: Partial<ParserOptions> = {}) {
         isSuccess: result ? result.errors.length === 0 : false,
     };
 }
-
-// Need to import useState for useLazyHtmlParser
-import { useState } from 'react';
 
 export default useHtmlParser;
 

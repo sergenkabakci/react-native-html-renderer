@@ -63,7 +63,6 @@ const CSS_TO_RN_MAP: Record<string, string> = {
     'padding-vertical': 'paddingVertical',
 
     // Border
-    'border': 'border',
     'border-width': 'borderWidth',
     'border-top-width': 'borderTopWidth',
     'border-right-width': 'borderRightWidth',
@@ -83,7 +82,7 @@ const CSS_TO_RN_MAP: Record<string, string> = {
 
     // Background
     'background-color': 'backgroundColor',
-    'background': 'backgroundColor',
+    'background': 'backgroundColor', // only plain colors, see parseInlineStyle
     'opacity': 'opacity',
 
     // Text
@@ -100,13 +99,9 @@ const CSS_TO_RN_MAP: Record<string, string> = {
     'text-decoration-color': 'textDecorationColor',
     'text-transform': 'textTransform',
     'letter-spacing': 'letterSpacing',
-    'text-shadow': 'textShadowColor',
-    'word-spacing': 'letterSpacing',
-    'white-space': 'whiteSpace',
-    'text-overflow': 'textOverflow',
 
-    // Shadow (limited support)
-    'box-shadow': 'shadowColor',
+    // Shadow: React Native 0.76+ (New Architecture) understands the CSS syntax
+    'box-shadow': 'boxShadow',
     'shadow-color': 'shadowColor',
     'shadow-offset': 'shadowOffset',
     'shadow-opacity': 'shadowOpacity',
@@ -115,6 +110,61 @@ const CSS_TO_RN_MAP: Record<string, string> = {
     // Other
     'overflow': 'overflow',
     'aspect-ratio': 'aspectRatio',
+};
+
+/**
+ * Values React Native accepts for enum-like style props.
+ * Anything else (e.g. `display: block`) is dropped instead of being passed to
+ * native, where it triggers warnings or red boxes.
+ */
+const ALLOWED_VALUES: Record<string, Set<string>> = {
+    display: new Set(['flex', 'none', 'contents']),
+    position: new Set(['absolute', 'relative', 'static']),
+    overflow: new Set(['visible', 'hidden', 'scroll']),
+    flexDirection: new Set(['row', 'column', 'row-reverse', 'column-reverse']),
+    flexWrap: new Set(['wrap', 'nowrap', 'wrap-reverse']),
+    justifyContent: new Set(['flex-start', 'flex-end', 'center', 'space-between', 'space-around', 'space-evenly']),
+    alignItems: new Set(['flex-start', 'flex-end', 'center', 'stretch', 'baseline']),
+    alignSelf: new Set(['auto', 'flex-start', 'flex-end', 'center', 'stretch', 'baseline']),
+    alignContent: new Set(['flex-start', 'flex-end', 'center', 'stretch', 'space-between', 'space-around', 'space-evenly']),
+    fontStyle: new Set(['normal', 'italic']),
+    textAlign: new Set(['auto', 'left', 'right', 'center', 'justify']),
+    textTransform: new Set(['none', 'uppercase', 'lowercase', 'capitalize']),
+    textDecorationStyle: new Set(['solid', 'double', 'dotted', 'dashed']),
+    borderStyle: new Set(['solid', 'dotted', 'dashed']),
+};
+
+/**
+ * CSS values that have a direct React Native equivalent under another name
+ */
+const VALUE_ALIASES: Record<string, Record<string, string>> = {
+    textAlign: { start: 'left', end: 'right' },
+    fontStyle: { oblique: 'italic' },
+    justifyContent: { start: 'flex-start', end: 'flex-end', left: 'flex-start', right: 'flex-end' },
+    alignItems: { start: 'flex-start', end: 'flex-end' },
+    alignSelf: { start: 'flex-start', end: 'flex-end' },
+};
+
+/**
+ * Props that must be plain numbers (no percentages or keywords)
+ */
+const NUMBER_ONLY_PROPS = new Set([
+    'fontSize', 'lineHeight', 'letterSpacing', 'opacity', 'zIndex',
+    'flex', 'flexGrow', 'flexShrink',
+    'borderWidth', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+    'shadowOpacity', 'shadowRadius',
+]);
+
+/**
+ * Generic CSS font families mapped to something every platform can resolve
+ */
+const GENERIC_FONT_FAMILIES: Record<string, string | undefined> = {
+    'monospace': 'monospace',
+    'serif': 'serif',
+    'sans-serif': undefined,
+    'system-ui': undefined,
+    'cursive': undefined,
+    'fantasy': undefined,
 };
 
 /**
@@ -137,6 +187,11 @@ const FONT_WEIGHT_MAP: Record<string, TextStyle['fontWeight']> = {
 };
 
 /**
+ * Base font size used to resolve relative units (em, rem, unitless line-height)
+ */
+const DEFAULT_FONT_SIZE = 16;
+
+/**
  * Parse a single CSS value, handling units
  */
 function parseValue(value: string, property: string): unknown {
@@ -149,7 +204,28 @@ function parseValue(value: string, property: string): unknown {
 
     // Handle font-weight specially
     if (property === 'fontWeight' || property === 'font-weight') {
-        return FONT_WEIGHT_MAP[trimmed] || trimmed;
+        return FONT_WEIGHT_MAP[trimmed];
+    }
+
+    // React Native wants a single font name, CSS allows a fallback list
+    if (property === 'fontFamily') {
+        const first = trimmed.split(',')[0].trim().replace(/^["']|["']$/g, '');
+        if (first.toLowerCase() in GENERIC_FONT_FAMILIES) {
+            return GENERIC_FONT_FAMILIES[first.toLowerCase()];
+        }
+        return first || undefined;
+    }
+
+    // Pass shadows through as-is, React Native parses the CSS syntax itself
+    if (property === 'boxShadow') {
+        return trimmed;
+    }
+
+    // Enum-like props: map aliases, drop values React Native doesn't support
+    const allowed = ALLOWED_VALUES[property];
+    if (allowed) {
+        const value = VALUE_ALIASES[property]?.[trimmed] ?? trimmed;
+        return allowed.has(value) ? value : undefined;
     }
 
     // Handle numeric values
@@ -158,6 +234,15 @@ function parseValue(value: string, property: string): unknown {
         const num = parseFloat(numericMatch[1]);
         const unit = numericMatch[2];
 
+        if (Number.isNaN(num)) {
+            return undefined;
+        }
+
+        // Percentages and viewport units make no sense for these props
+        if (NUMBER_ONLY_PROPS.has(property) && (unit === '%' || unit === 'vh' || unit === 'vw')) {
+            return undefined;
+        }
+
         // React Native doesn't support units, convert to numbers
         switch (unit) {
             case 'px':
@@ -165,7 +250,7 @@ function parseValue(value: string, property: string): unknown {
             case 'em':
             case 'rem':
                 // Approximate conversion (base 16px)
-                return num * 16;
+                return num * DEFAULT_FONT_SIZE;
             case 'pt':
                 return num * 1.333; // 1pt ≈ 1.333px
             case '%':
@@ -188,6 +273,16 @@ function parseValue(value: string, property: string): unknown {
     // Handle text-decoration mapping
     if (property === 'textDecorationLine' || property === 'text-decoration') {
         return mapTextDecoration(trimmed);
+    }
+
+    // Keywords like `auto` or `normal` are not valid for number-only props
+    if (NUMBER_ONLY_PROPS.has(property)) {
+        return undefined;
+    }
+
+    // calc(), var() and other CSS functions have no React Native equivalent
+    if (trimmed.includes('(')) {
+        return undefined;
     }
 
     // Return as-is for string values
@@ -219,26 +314,61 @@ function parseColor(value: string): string {
  * Map CSS text-decoration to React Native textDecorationLine
  */
 function mapTextDecoration(value: string): string {
-    const decorations = value.split(' ');
-    const mapped: string[] = [];
-
-    for (const dec of decorations) {
-        switch (dec) {
-            case 'underline':
-                mapped.push('underline');
-                break;
-            case 'line-through':
-                mapped.push('line-through');
-                break;
-            case 'overline':
-                // Not supported in RN, skip
-                break;
-            case 'none':
-                return 'none';
-        }
+    const decorations = value.split(/\s+/);
+    if (decorations.includes('none')) {
+        return 'none';
     }
 
-    return mapped.join(' ') || 'none';
+    // React Native only accepts this exact order; `overline`, colors and styles are ignored
+    const underline = decorations.includes('underline');
+    const lineThrough = decorations.includes('line-through');
+    if (underline && lineThrough) return 'underline line-through';
+    if (underline) return 'underline';
+    if (lineThrough) return 'line-through';
+    return 'none';
+}
+
+/**
+ * Box properties that accept the 1-4 value CSS shorthand
+ */
+const BOX_SHORTHANDS = new Set(['margin', 'padding']);
+
+/**
+ * Expand `margin: 0 auto` style shorthands into the four sides.
+ * Returns undefined when a part can't be converted.
+ */
+function expandBoxShorthand(value: string, prefix: string): Record<string, unknown> | undefined {
+    const parts = value.split(/\s+/).map(part => (part === 'auto' ? 'auto' : parseValue(part, prefix)));
+    if (parts.some(part => part === undefined || (typeof part === 'string' && part !== 'auto' && !part.endsWith('%')))) {
+        return undefined;
+    }
+
+    const [top, right = top, bottom = top, left = right] = parts;
+    return {
+        [`${prefix}Top`]: top,
+        [`${prefix}Right`]: right,
+        [`${prefix}Bottom`]: bottom,
+        [`${prefix}Left`]: left,
+    };
+}
+
+/**
+ * Expand `border: 1px solid #ccc` into width, style and color
+ */
+function expandBorderShorthand(value: string): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const part of value.split(/\s+(?![^(]*\))/)) {
+        if (/^-?[\d.]+(px)?$/.test(part)) {
+            result.borderWidth = parseFloat(part);
+        } else if (ALLOWED_VALUES.borderStyle.has(part)) {
+            result.borderStyle = part;
+        } else if (part === 'none' || part === '0') {
+            result.borderWidth = 0;
+        } else if (part) {
+            result.borderColor = parseColor(part);
+        }
+    }
+    return result;
 }
 
 /**
@@ -259,6 +389,7 @@ export function parseInlineStyle(cssString: string | undefined): RNStyle {
     }
 
     const style: Record<string, unknown> = {};
+    let lineHeightMultiplier: number | undefined;
 
     // Split by semicolon, handling potential edge cases
     const declarations = cssString.split(';').filter(Boolean);
@@ -268,9 +399,17 @@ export function parseInlineStyle(cssString: string | undefined): RNStyle {
         if (colonIndex === -1) continue;
 
         const property = declaration.substring(0, colonIndex).trim().toLowerCase();
-        const value = declaration.substring(colonIndex + 1).trim();
+        const value = declaration
+            .substring(colonIndex + 1)
+            .replace(/!important\s*$/i, '')
+            .trim();
 
         if (!property || !value) continue;
+
+        if (property === 'border') {
+            Object.assign(style, expandBorderShorthand(value));
+            continue;
+        }
 
         // Map CSS property to RN property
         const rnProperty = CSS_TO_RN_MAP[property];
@@ -279,10 +418,34 @@ export function parseInlineStyle(cssString: string | undefined): RNStyle {
             continue;
         }
 
+        // `background` is often an image or gradient, keep only plain colors
+        if (property === 'background' && /url\(|gradient\(|\s/.test(value)) {
+            continue;
+        }
+
+        if (BOX_SHORTHANDS.has(rnProperty) && /\s/.test(value)) {
+            const expanded = expandBoxShorthand(value, rnProperty);
+            if (expanded) {
+                Object.assign(style, expanded);
+            }
+            continue;
+        }
+
+        // CSS allows a unitless multiplier for line-height (`line-height: 1.5`)
+        if (rnProperty === 'lineHeight' && /^[\d.]+$/.test(value)) {
+            lineHeightMultiplier = parseFloat(value);
+            continue;
+        }
+
         const parsedValue = parseValue(value, rnProperty);
         if (parsedValue !== undefined) {
             style[rnProperty] = parsedValue;
         }
+    }
+
+    if (lineHeightMultiplier !== undefined && !Number.isNaN(lineHeightMultiplier)) {
+        const fontSize = typeof style.fontSize === 'number' ? style.fontSize : DEFAULT_FONT_SIZE;
+        style.lineHeight = Math.round(fontSize * lineHeightMultiplier * 100) / 100;
     }
 
     return style as RNStyle;

@@ -12,10 +12,13 @@ import {
   Pressable,
   StyleSheet,
   Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import type { ImageStyle, ViewStyle } from 'react-native';
 import type { ElementNode } from '../parser/types';
 import { useRenderContext } from '../renderer/RenderContext';
+import { LOG_PREFIX } from '../renderer/constants';
+import { constrainDimensions } from '../hooks/useImageDimensions';
 
 /**
  * Props for ImageElement
@@ -30,9 +33,16 @@ export interface ImageElementProps {
 }
 
 /**
- * Default max width for images
+ * Horizontal space reserved next to images (matches typical screen padding)
  */
-const DEFAULT_MAX_WIDTH = Dimensions.get('window').width - 32;
+const HORIZONTAL_INSET = 32;
+
+/**
+ * Default max width for images, measured once at startup.
+ * @deprecated The renderer now follows `useWindowDimensions()` so images adapt to
+ * rotation, split screen and foldables. Kept only for backwards compatibility.
+ */
+const DEFAULT_MAX_WIDTH = Dimensions.get('window').width - HORIZONTAL_INSET;
 
 /**
  * Parse dimension value from attributes
@@ -51,44 +61,51 @@ function ImageElementComponent({
   style,
 }: ImageElementProps): React.ReactElement {
   const { onImagePress } = useRenderContext();
+  const { width: windowWidth } = useWindowDimensions();
+  const maxWidth = Math.max(windowWidth - HORIZONTAL_INSET, 0);
   
   const src = node.attributes.src || '';
   const alt = node.attributes.alt || '';
   const widthAttr = parseDimension(node.attributes.width);
   const heightAttr = parseDimension(node.attributes.height);
+  const hasSizeAttrs = Boolean(widthAttr && heightAttr);
   
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(
-    widthAttr && heightAttr ? { width: widthAttr, height: heightAttr } : null
-  );
+  const [fetchedSize, setFetchedSize] = useState<{ width: number; height: number } | null>(null);
   
-  // Fetch image dimensions if not provided
+  // Fetch the natural image size when the markup doesn't provide one
   useEffect(() => {
-    if (!src || dimensions) return;
+    if (!src || hasSizeAttrs) return;
     
+    let cancelled = false;
     Image.getSize(
       src,
       (width, height) => {
-        // Scale down if larger than max width
-        if (width > DEFAULT_MAX_WIDTH) {
-          const ratio = DEFAULT_MAX_WIDTH / width;
-          setDimensions({
-            width: DEFAULT_MAX_WIDTH,
-            height: height * ratio,
-          });
-        } else {
-          setDimensions({ width, height });
+        if (!cancelled) {
+          setFetchedSize({ width, height });
         }
       },
       (error) => {
-        console.warn(`[react-native-html-viewer] Failed to get image size: ${src}`, error);
-        // Use fallback dimensions
-        setDimensions({ width: DEFAULT_MAX_WIDTH, height: 200 });
+        if (cancelled) return;
+        console.warn(`${LOG_PREFIX} Failed to get image size: ${src}`, error);
         setHasError(true);
       }
     );
-  }, [src, dimensions]);
+    return () => {
+      cancelled = true;
+    };
+  }, [src, hasSizeAttrs]);
+  
+  // Fit the natural size into the current window width (recomputed on rotation/resize)
+  const naturalSize = hasSizeAttrs
+    ? { width: widthAttr as number, height: heightAttr as number }
+    : fetchedSize;
+  const dimensions = naturalSize
+    ? constrainDimensions(naturalSize.width, naturalSize.height, maxWidth)
+    : hasError
+      ? { width: maxWidth, height: 200 }
+      : null;
   
   const handleLoad = useCallback(() => {
     setIsLoading(false);

@@ -1,5 +1,5 @@
 /**
- * react-native-html-viewer
+ * @sergenkabakci/react-native-html-renderer
  * 
  * A performant HTML rendering library for React Native
  * using native components instead of WebView.
@@ -9,6 +9,8 @@
 
 // Main renderer component
 export { HTMLRenderer, default } from './renderer/HTMLRenderer';
+export { HtmlErrorBoundary } from './renderer/ErrorBoundary';
+export type { HtmlErrorBoundaryProps } from './renderer/ErrorBoundary';
 
 // Renderer exports
 export {

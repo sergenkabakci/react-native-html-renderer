@@ -29,6 +29,8 @@ export interface RenderContextValue {
   textScale: number;
   /** Text selectable */
   textSelectable: boolean;
+  /** Text style every text in the document inherits from */
+  baseTextStyle?: TextStyle;
   /** Custom fonts */
   customFonts?: Record<string, string>;
   /** Fallback component */
@@ -66,24 +68,45 @@ export interface RenderContextProviderProps extends Partial<RenderContextValue> 
  */
 export function RenderContextProvider({
   children,
-  ...props
+  resolveStyle,
+  renderers,
+  pluginRegistry,
+  onLinkPress,
+  onImagePress,
+  textScale,
+  textSelectable,
+  baseTextStyle,
+  customFonts,
+  FallbackComponent,
+  debug,
 }: RenderContextProviderProps): React.ReactElement {
+  // `??` instead of object spread so an explicitly passed `undefined` keeps the default
   const value = useMemo<RenderContextValue>(
     () => ({
-      ...defaultContext,
-      ...props,
+      resolveStyle: resolveStyle ?? defaultContext.resolveStyle,
+      renderers: renderers ?? defaultContext.renderers,
+      pluginRegistry: pluginRegistry ?? defaultContext.pluginRegistry,
+      onLinkPress,
+      onImagePress,
+      textScale: textScale ?? defaultContext.textScale,
+      textSelectable: textSelectable ?? defaultContext.textSelectable,
+      baseTextStyle,
+      customFonts,
+      FallbackComponent,
+      debug: debug ?? defaultContext.debug,
     }),
     [
-      props.resolveStyle,
-      props.renderers,
-      props.pluginRegistry,
-      props.onLinkPress,
-      props.onImagePress,
-      props.textScale,
-      props.textSelectable,
-      props.customFonts,
-      props.FallbackComponent,
-      props.debug,
+      resolveStyle,
+      renderers,
+      pluginRegistry,
+      onLinkPress,
+      onImagePress,
+      textScale,
+      textSelectable,
+      baseTextStyle,
+      customFonts,
+      FallbackComponent,
+      debug,
     ]
   );
 

@@ -158,8 +158,9 @@ export const SUPPORTED_TAGS = [
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     // Text formatting
     'span', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'ins', 'mark', 'small', 'sub', 'sup',
+    'abbr', 'cite', 'q', 'time', 'kbd', 'samp', 'var', 'dfn', 'font', 'label', 'bdi', 'bdo', 'data', 'big', 'tt',
     // Lists
-    'ul', 'ol', 'li',
+    'ul', 'ol', 'li', 'dl', 'dt', 'dd',
     // Links and media
     'a', 'img', 'br', 'hr',
     // Tables
@@ -167,7 +168,7 @@ export const SUPPORTED_TAGS = [
     // Code
     'pre', 'code',
     // Other
-    'figure', 'figcaption', 'details', 'summary',
+    'figure', 'figcaption', 'details', 'summary', 'center', 'address', 'hgroup',
 ] as const;
 
 export type SupportedTag = typeof SUPPORTED_TAGS[number];
@@ -185,9 +186,10 @@ export function isSupportedTag(tag: string): tag is SupportedTag {
 export const BLOCK_TAGS = new Set([
     'div', 'p', 'blockquote', 'article', 'section', 'header', 'footer', 'main', 'aside', 'nav',
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'ul', 'ol', 'li',
-    'table', 'thead', 'tbody', 'tfoot', 'tr',
+    'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption',
     'pre', 'figure', 'figcaption', 'details', 'summary', 'hr',
+    'center', 'address', 'hgroup',
 ]);
 
 /**
@@ -195,8 +197,23 @@ export const BLOCK_TAGS = new Set([
  */
 export const INLINE_TAGS = new Set([
     'span', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'ins', 'mark', 'small', 'sub', 'sup',
+    'abbr', 'cite', 'q', 'time', 'kbd', 'samp', 'var', 'dfn', 'font', 'label', 'bdi', 'bdo', 'data', 'big', 'tt',
     'a', 'code', 'br',
 ]);
+
+/**
+ * Tags that are laid out as boxes even though they may sit inside text
+ * (they end a line of inline content, like block elements do)
+ */
+export const BOX_TAGS = new Set([
+    'img', 'video', 'audio', 'iframe', 'canvas', 'svg', 'object', 'embed',
+    'form', 'fieldset', 'legend', 'input', 'textarea', 'select', 'button',
+]);
+
+/**
+ * Tags whose text keeps its whitespace and line breaks
+ */
+export const PREFORMATTED_TAGS = new Set(['pre', 'textarea']);
 
 /**
  * Self-closing tags
@@ -217,6 +234,15 @@ export function isBlockTag(tag: string): boolean {
  */
 export function isInlineTag(tag: string): boolean {
     return INLINE_TAGS.has(tag);
+}
+
+/**
+ * Check if a known tag breaks a line of inline content (block-level tags and boxes
+ * such as images). Unknown tags are treated as inline, because custom renderers
+ * usually render them in the text flow.
+ */
+export function isLineBreakingTag(tag: string): boolean {
+    return BLOCK_TAGS.has(tag) || BOX_TAGS.has(tag);
 }
 
 /**

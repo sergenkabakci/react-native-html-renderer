@@ -4,16 +4,35 @@
  * @module renderer/HTMLRenderer
  */
 
-import React, { useMemo, useCallback, useEffect, memo, type ReactNode } from 'react';
+import React, { useMemo, useCallback, useEffect, memo } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import type { ViewStyle } from 'react-native';
 
 import { useHtmlParser } from '../parser/useHtmlParser';
+import type { HtmlNode, ParserOptions } from '../parser/types';
 import { createStyleResolver, type StyleResolverConfig } from '../styles/styleResolver';
 import { createPluginRegistry, type PluginRegistry, type HtmlPlugin, type RenderersMap } from '../plugins';
+import { VirtualizedContent, shouldVirtualize } from '../performance/VirtualizedContent';
 import { RenderContextProvider } from './RenderContext';
 import { NodesRenderer } from './NodeRenderer';
-import type { HTMLRendererProps, FallbackProps } from './types';
+import { HtmlErrorBoundary } from './ErrorBoundary';
+import { LOG_PREFIX } from './constants';
+import type { HTMLRendererProps } from './types';
+
+// Shared defaults: fresh `{}` / `[]` literals in the parameter list would change
+// identity on every render and invalidate the memoized registry, resolver and context.
+const EMPTY_RENDERERS: RenderersMap = {};
+const EMPTY_PLUGINS: HtmlPlugin[] = [];
+const EMPTY_PARSER_OPTIONS: Partial<ParserOptions> = {};
+
+/**
+ * Keep the first object seen for a given serialized value, so inline style
+ * literals (`tagsStyles={{ p: {...} }}`) don't rebuild the whole tree each render.
+ */
+function useStableStyleObject<T extends object | undefined>(value: T): T {
+  const key = value === undefined ? undefined : JSON.stringify(value);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => value, [key]);
+}
 
 /**
  * Error boundary fallback component
@@ -75,16 +94,16 @@ function EmptyContent(): React.ReactElement {
  */
 function HTMLRendererComponent({
   html,
-  tagsStyles = {},
-  classesStyles = {},
-  renderers = {},
-  baseTextStyle,
+  tagsStyles: tagsStylesProp,
+  classesStyles: classesStylesProp,
+  renderers = EMPTY_RENDERERS,
+  baseTextStyle: baseTextStyleProp,
   containerStyle,
   onLinkPress,
   onImagePress,
-  plugins = [],
+  plugins = EMPTY_PLUGINS,
   pluginRegistry: customRegistry,
-  parserOptions = {},
+  parserOptions = EMPTY_PARSER_OPTIONS,
   textScale = 1,
   textSelectable = false,
   customFonts,
@@ -92,11 +111,16 @@ function HTMLRendererComponent({
   debug = false,
   contentKey,
   enableVirtualization = false,
+  estimatedRowHeight,
   virtualizationThreshold = 500,
   errorBoundaryFallback,
   onRenderComplete,
   onError,
 }: HTMLRendererProps): React.ReactElement {
+  const tagsStyles = useStableStyleObject(tagsStylesProp);
+  const classesStyles = useStableStyleObject(classesStylesProp);
+  const baseTextStyle = useStableStyleObject(baseTextStyleProp);
+
   // Parse HTML
   const { nodes, errors, isSuccess } = useHtmlParser(html, parserOptions);
   
@@ -126,7 +150,7 @@ function HTMLRendererComponent({
         reg.register(plugin);
       } catch (error) {
         if (debug) {
-          console.warn(`[react-native-html-viewer] Failed to register plugin: ${plugin.name}`, error);
+          console.warn(`${LOG_PREFIX} Failed to register plugin: ${plugin.name}`, error);
         }
       }
     }
@@ -136,14 +160,15 @@ function HTMLRendererComponent({
   
   // Create style resolver
   const resolveStyle = useMemo(() => {
+    // baseTextStyle is not part of the resolver: it is inherited through
+    // RenderContext, so nested elements don't reset their parent's text style
     const config: StyleResolverConfig = {
       tagsStyles,
       classesStyles,
-      baseTextStyle,
       useDefaultStyles: true,
     };
     return createStyleResolver(config);
-  }, [tagsStyles, classesStyles, baseTextStyle]);
+  }, [tagsStyles, classesStyles]);
   
   // Merge custom renderers with plugin renderers
   const mergedRenderers = useMemo<RenderersMap>(() => {
@@ -153,38 +178,62 @@ function HTMLRendererComponent({
     };
   }, [registry, renderers]);
   
+  // Only virtualize when explicitly enabled and the tree is large enough
+  const virtualize = useMemo(
+    () => enableVirtualization && shouldVirtualize(nodes, virtualizationThreshold),
+    [enableVirtualization, nodes, virtualizationThreshold]
+  );
+
+  const renderChunk = useCallback(
+    (chunk: HtmlNode[]) => <NodesRenderer nodes={chunk} />,
+    []
+  );
+
+  const errorFallback = errorBoundaryFallback ?? <DefaultErrorFallback />;
+
   // Handle empty or failed HTML
   if (!html || html.trim() === '') {
     return <EmptyContent />;
   }
   
   if (!isSuccess) {
-    if (errorBoundaryFallback) {
-      return <>{errorBoundaryFallback}</>;
-    }
-    return <DefaultErrorFallback />;
+    return <>{errorFallback}</>;
   }
   
   return (
-    <RenderContextProvider
-      resolveStyle={resolveStyle}
-      renderers={mergedRenderers}
-      pluginRegistry={registry}
-      onLinkPress={onLinkPress}
-      onImagePress={onImagePress}
-      textScale={textScale}
-      textSelectable={textSelectable}
-      customFonts={customFonts}
-      FallbackComponent={fallbackComponent}
-      debug={debug}
-    >
-      <View
-        key={contentKey}
-        style={[styles.container, containerStyle]}
+    <HtmlErrorBoundary fallback={errorFallback} onError={onError} resetKey={html}>
+      <RenderContextProvider
+        resolveStyle={resolveStyle}
+        renderers={mergedRenderers}
+        pluginRegistry={registry}
+        onLinkPress={onLinkPress}
+        onImagePress={onImagePress}
+        textScale={textScale}
+        textSelectable={textSelectable}
+        baseTextStyle={baseTextStyle}
+        customFonts={customFonts}
+        FallbackComponent={fallbackComponent}
+        debug={debug}
       >
-        <NodesRenderer nodes={nodes} />
-      </View>
-    </RenderContextProvider>
+        {virtualize ? (
+          <VirtualizedContent
+            key={contentKey}
+            nodes={nodes}
+            renderNodes={renderChunk}
+            estimatedRowHeight={estimatedRowHeight}
+            style={containerStyle}
+            debug={debug}
+          />
+        ) : (
+          <View
+            key={contentKey}
+            style={[styles.container, containerStyle]}
+          >
+            <NodesRenderer nodes={nodes} />
+          </View>
+        )}
+      </RenderContextProvider>
+    </HtmlErrorBoundary>
   );
 }
 

@@ -73,13 +73,14 @@ function estimateNodeHeight(node: HtmlNode, baseHeight: number): number {
       case 'pre':
       case 'code':
         return baseHeight * 2;
-      default:
+      default: {
         // Sum children + margin
         const childrenHeight = el.children.reduce(
           (sum, child) => sum + estimateNodeHeight(child, baseHeight),
           0
         );
         return childrenHeight + 10;
+      }
     }
   }
   
@@ -164,22 +165,8 @@ function VirtualizedContentComponent({
     []
   );
   
-  // Get item layout for optimization
-  const getItemLayout = useCallback(
-    (_: ArrayLike<NodeChunk> | null | undefined, index: number) => {
-      const chunk = chunks[index];
-      const offset = chunks
-        .slice(0, index)
-        .reduce((sum, c) => sum + c.estimatedHeight, 0);
-      
-      return {
-        length: chunk?.estimatedHeight || estimatedRowHeight,
-        offset,
-        index,
-      };
-    },
-    [chunks, estimatedRowHeight]
-  );
+  // No getItemLayout on purpose: chunk heights are only estimates, and feeding
+  // wrong layouts to FlatList causes blank areas and scroll jumps.
   
   if (debug) {
     console.log(`[VirtualizedContent] Rendering ${chunks.length} chunks from ${nodes.length} nodes`);
@@ -190,11 +177,9 @@ function VirtualizedContentComponent({
       data={chunks}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      getItemLayout={getItemLayout}
       initialNumToRender={initialNumToRender}
       maxToRenderPerBatch={maxToRenderPerBatch}
       windowSize={windowSize}
-      removeClippedSubviews
       style={[styles.container, style]}
       showsVerticalScrollIndicator={false}
     />

@@ -70,6 +70,8 @@ export function useMemoizedNodes<T>(
         }
 
         return resultRef.current;
+        // `deps` is caller-provided by design, like the deps of useMemo itself
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [nodes, ...deps]);
 }
 

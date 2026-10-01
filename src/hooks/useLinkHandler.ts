@@ -4,7 +4,7 @@
  * @module hooks/useLinkHandler
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { Linking, Alert } from 'react-native';
 import type { ElementNode } from '../parser/types';
 
